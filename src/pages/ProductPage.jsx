@@ -4,6 +4,7 @@ import Footer from '../components/Footer';
 import { useCart } from '../context/CartContext';
 import { useCountdown } from '../context/CountdownContext';
 import { useCountry } from '../context/CountryContext';
+import { getShopifyProduct, matchVariant } from '../services/shopify';
 
 const BUNDLES = [
   { qty: 1, label: '1 Light',  price: 87.00,  orig: 174.00, tag: null,           disc: null },
@@ -98,6 +99,8 @@ export default function ProductPage() {
   const [newReviewText, setNewReviewText] = useState('');
   const [newReviewRating, setNewReviewRating] = useState(5);
   const [reviewSubmitted, setReviewSubmitted] = useState(false);
+  const [shopifyProduct, setShopifyProduct] = useState(null);
+  const [shopifyVariants, setShopifyVariants] = useState([]);
   const thumbsRef = useRef(null);
   const videoRef = useRef(null);
   const reviewVideoRef = useRef(null);
@@ -152,6 +155,26 @@ export default function ProductPage() {
 
   useEffect(() => {
     document.title = 'The Grip Glow — Magnetic LED Work Light | GRIP GLOW';
+  }, []);
+
+  // Fetch product data and variant IDs from Shopify Storefront API
+  useEffect(() => {
+    let isMounted = true;
+    getShopifyProduct()
+      .then((product) => {
+        if (!isMounted || !product) return;
+        setShopifyProduct(product);
+        if (product.variants?.nodes?.length > 0) {
+          setShopifyVariants(product.variants.nodes);
+          console.log('[Shopify] Synced product variants:', product.variants.nodes);
+        }
+      })
+      .catch((err) => {
+        console.warn('[Shopify] Could not fetch live product data:', err.message);
+      });
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   // Synchronize colour when active image changes to a colour edition
@@ -253,13 +276,37 @@ export default function ProductPage() {
 
     const variantText = b.qty === 1 ? `${colors[0]} · 1 Light` : `${colors.join(', ')} · ${b.label}`;
 
+    // Map each light in the bundle to the corresponding Shopify variant ID
+    const bundledLines = colors.map((col) => {
+      const matched = matchVariant(shopifyVariants, col);
+      return {
+        color: col,
+        shopifyVariantId: matched?.id || `gid://shopify/ProductVariant/fake-${col.toLowerCase()}`,
+        qty: 1,
+      };
+    });
+
+    const primaryVariant = matchVariant(shopifyVariants, colors[0]);
+    const primaryShopifyId = primaryVariant?.id || `gid://shopify/ProductVariant/fake-${colors[0].toLowerCase()}`;
+
+    // Price synchronization from Shopify variant if available
+    let dynamicPrice = b.price;
+    if (primaryVariant?.price?.amount) {
+      const unit = parseFloat(primaryVariant.price.amount);
+      if (b.qty === 1) dynamicPrice = unit;
+      else if (b.qty === 2) dynamicPrice = +(unit * 2 * 0.9).toFixed(2);
+      else if (b.qty === 3) dynamicPrice = +(unit * 3 * 0.85).toFixed(2);
+    }
+
     addItem(
       {
         id: `gripglow-${b.qty}-${colors.map((c) => c.toLowerCase()).join('-')}`,
+        shopifyVariantId: primaryShopifyId,
+        bundledLines,
         name: `The Grip Glow (${colorStr}) ×${b.qty}`,
-        title: 'The Grip Glow Magnetic Work Light',
+        title: shopifyProduct?.title || 'The Grip Glow Magnetic Work Light',
         variant: variantText,
-        price: b.price,
+        price: dynamicPrice,
         img: GALLERY[firstOpt.imgIndex].src,
       },
       1

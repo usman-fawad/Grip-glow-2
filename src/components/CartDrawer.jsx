@@ -3,7 +3,18 @@ import { useCart } from '../context/CartContext';
 import { useCountry } from '../context/CountryContext';
 
 export default function CartDrawer() {
-  const { items, isOpen, setIsOpen, removeItem, updateQty, totalPrice, totalQty } = useCart();
+  const {
+    items,
+    isOpen,
+    setIsOpen,
+    removeItem,
+    updateQty,
+    totalPrice,
+    totalQty,
+    isCheckingOut,
+    checkoutError,
+    proceedToCheckout,
+  } = useCart();
   const { selectedCountry } = useCountry();
 
   // Close on Escape key
@@ -44,7 +55,7 @@ export default function CartDrawer() {
         aria-modal="true"
         aria-label="Shopping cart"
       >
-        {/* 1. Header like 1st Image */}
+        {/* 1. Header */}
         <div className="cart-drawer__head">
           <div className="cart-drawer__head-left">
             <div className="cart-drawer__bag-icon" aria-hidden="true">
@@ -72,7 +83,7 @@ export default function CartDrawer() {
           </button>
         </div>
 
-        {/* 2. Product Items list like Image 2 */}
+        {/* 2. Product Items list */}
         <div className="cart-drawer__body">
           {items.length === 0 ? (
             <div className="cart-empty">
@@ -158,48 +169,69 @@ export default function CartDrawer() {
           )}
         </div>
 
-        {/* 3, 4, 5, 6, 7, 8: Cart Footer Elements */}
+        {/* Cart Footer Elements */}
         {items.length > 0 && (
           <div className="cart-drawer__foot">
-            {/* 3. Subtotal */}
+            {/* Subtotal */}
             <div className="cart-summary-row cart-summary-row--subtotal">
               <span className="cart-summary-label">Subtotal</span>
               <span className="cart-summary-value">{formatPrice(totalPrice)}</span>
             </div>
 
-            {/* 4. Total */}
+            {/* Total */}
             <div className="cart-summary-row cart-summary-row--total">
               <span className="cart-total-label">Total</span>
               <span className="cart-total-value">{formatPrice(totalPrice)}</span>
             </div>
 
-            {/* 3rd Image: Trust Badges placed after total price */}
+            {/* Trust Badges */}
             <div className="cart-trust-badges">
               <img
                 src="/cart-trust-badges.png"
-                alt="Free UK Delivery · 30-Day Returns · Trusted Quality"
+                alt="Free Delivery · 30-Day Returns · Trusted Quality"
                 className="cart-trust-badges-img"
               />
             </div>
 
-            {/* 5. Highlighted Free UK tracked delivery notice */}
+            {/* Highlighted tracked delivery notice */}
             <div className="cart-shipping-notice">
-              <span className="cart-shipping-notice__highlight">Free UK tracked delivery included</span>
+              <span className="cart-shipping-notice__highlight">Free tracked delivery included</span>
             </div>
 
-            {/* 6. Proceed to Checkout Button */}
+            {/* Error Notification if Cart/Checkout Fails (Requirement 11) */}
+            {checkoutError && (
+              <div className="cart-checkout-error" role="alert">
+                <svg viewBox="0 0 20 20" width="16" height="16" fill="currentColor">
+                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                </svg>
+                <span>{checkoutError}</span>
+              </div>
+            )}
+
+            {/* Proceed to Shopify Checkout Button */}
             <button
               type="button"
-              className="cart-checkout-btn"
-              onClick={() => alert('Proceeding to secure checkout... Connect your payment gateway to finalize purchases.')}
+              className={`cart-checkout-btn${isCheckingOut ? ' cart-checkout-btn--loading' : ''}`}
+              onClick={proceedToCheckout}
+              disabled={isCheckingOut}
+              aria-busy={isCheckingOut}
             >
-              <span>PROCEED TO SECURE CHECKOUT</span>
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
-                <path fillRule="evenodd" d="M12 1.5a5.25 5.25 0 00-5.25 5.25v3H5.25A2.25 2.25 0 003 12v7.5A2.25 2.25 0 005.25 21.75h13.5A2.25 2.25 0 0021 19.5V12a2.25 2.25 0 00-2.25-2.25h-1.5v-3A5.25 5.25 0 0012 1.5zm3.75 8.25v-3a3.75 3.75 0 00-7.5 0v3h7.5z" clipRule="evenodd"/>
-              </svg>
+              {isCheckingOut ? (
+                <>
+                  <span className="cart-spinner" aria-hidden="true"></span>
+                  <span>REDIRECTING TO SHOPIFY CHECKOUT...</span>
+                </>
+              ) : (
+                <>
+                  <span>PROCEED TO SECURE CHECKOUT</span>
+                  <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                    <path fillRule="evenodd" d="M12 1.5a5.25 5.25 0 00-5.25 5.25v3H5.25A2.25 2.25 0 003 12v7.5A2.25 2.25 0 005.25 21.75h13.5A2.25 2.25 0 0021 19.5V12a2.25 2.25 0 00-2.25-2.25h-1.5v-3A5.25 5.25 0 0012 1.5zm3.75 8.25v-3a3.75 3.75 0 00-7.5 0v3h7.5z" clipRule="evenodd"/>
+                  </svg>
+                </>
+              )}
             </button>
 
-            {/* 7. Payment Badges */}
+            {/* Payment Badges */}
             <div className="cart-payment-badges" aria-label="Accepted payment methods">
               <img src="/pay-visa.png" alt="Visa" className="pay-badge-img" />
               <img src="/pay-mc.png" alt="Mastercard" className="pay-badge-img" />
@@ -210,7 +242,7 @@ export default function CartDrawer() {
               <img src="/pay-shop.png" alt="Shop Pay" className="pay-badge-img" />
             </div>
 
-            {/* 8. 30-Day Money-Back Guarantee */}
+            {/* 30-Day Money-Back Guarantee */}
             <div className="cart-guarantee">
               <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
                 <path fillRule="evenodd" d="M12 1.5a5.25 5.25 0 00-5.25 5.25v3H5.25A2.25 2.25 0 003 12v7.5A2.25 2.25 0 005.25 21.75h13.5A2.25 2.25 0 0021 19.5V12a2.25 2.25 0 00-2.25-2.25h-1.5v-3A5.25 5.25 0 0012 1.5zm3.75 8.25v-3a3.75 3.75 0 00-7.5 0v3h7.5z" clipRule="evenodd"/>
@@ -218,7 +250,7 @@ export default function CartDrawer() {
               <span>30-Day Money-Back Guarantee</span>
             </div>
 
-            {/* 9. Continue Shopping Button */}
+            {/* Continue Shopping Button */}
             <button
               type="button"
               className="cart-continue-btn"
