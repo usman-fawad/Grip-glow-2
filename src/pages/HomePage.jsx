@@ -180,7 +180,7 @@ export default function HomePage() {
           <div className="trust-row" style={{marginTop:'4rem'}}>
             <div className="trust-item">
               <div className="trust-item__icon" aria-hidden="true">
-                <svg viewBox="0 0 48 48" fill="none" stroke="#FFE600" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <svg viewBox="0 0 48 48" fill="none" stroke="#E52B2B" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <rect x="8" y="20" width="32" height="22" rx="2"/><path d="M16 20V14a8 8 0 0116 0v6"/><circle cx="24" cy="31" r="2"/><line x1="24" y1="33" x2="24" y2="37"/>
                 </svg>
               </div>
@@ -189,7 +189,7 @@ export default function HomePage() {
             </div>
             <div className="trust-item">
               <div className="trust-item__icon" aria-hidden="true">
-                <svg viewBox="0 0 48 48" fill="none" stroke="#FFE600" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <svg viewBox="0 0 48 48" fill="none" stroke="#E52B2B" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M24 4L6 12v16c0 10 7.5 18 18 20 10.5-2 18-10 18-20V12L24 4z"/><polyline points="16 24 21 29 32 18"/>
                 </svg>
               </div>
@@ -198,7 +198,7 @@ export default function HomePage() {
             </div>
             <div className="trust-item">
               <div className="trust-item__icon" aria-hidden="true">
-                <svg viewBox="0 0 48 48" fill="none" stroke="#FFE600" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <svg viewBox="0 0 48 48" fill="none" stroke="#E52B2B" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <rect x="4" y="12" width="40" height="30" rx="3"/><path d="M4 20h40"/><line x1="12" y1="30" x2="24" y2="30"/><line x1="28" y1="30" x2="36" y2="30"/>
                 </svg>
               </div>

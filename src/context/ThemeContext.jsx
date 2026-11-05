@@ -1,31 +1,22 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useEffect } from 'react';
 
 const ThemeContext = createContext();
 
 export function ThemeProvider({ children }) {
-  const [theme, setTheme] = useState(() => {
-    try {
-      const saved = localStorage.getItem('gripglow_theme');
-      return saved ? saved : 'dark';
-    } catch {
-      return 'dark';
-    }
-  });
+  const theme = 'dark';
 
   useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme);
-    if (document.body) document.body.setAttribute('data-theme', theme);
+    document.documentElement.setAttribute('data-theme', 'dark');
+    if (document.body) document.body.setAttribute('data-theme', 'dark');
     try {
-      localStorage.setItem('gripglow_theme', theme);
+      localStorage.setItem('gripglow_theme', 'dark');
     } catch {}
-  }, [theme]);
+  }, []);
 
-  const toggleTheme = () => {
-    setTheme(prev => (prev === 'dark' ? 'light' : 'dark'));
-  };
+  const toggleTheme = () => {};
 
   return (
-    <ThemeContext.Provider value={{ theme, toggleTheme, isDark: theme === 'dark' }}>
+    <ThemeContext.Provider value={{ theme: 'dark', toggleTheme, isDark: true }}>
       {children}
     </ThemeContext.Provider>
   );

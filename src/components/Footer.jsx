@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useCountry } from '../context/CountryContext';
 
 function NewsletterForm() {
   const [email, setEmail] = useState('');
@@ -37,9 +36,6 @@ function NewsletterForm() {
 }
 
 export default function Footer() {
-  const { selectedCountry, setCountry, countries } = useCountry();
-  const [dropOpen, setDropOpen] = useState(false);
-
   return (
     <footer className="footer" id="footer">
       <div className="container">
@@ -47,7 +43,9 @@ export default function Footer() {
           {/* Brand */}
           <div className="footer__col">
             <Link to="/" className="footer__logo" aria-label="GRIP GLOW home">
-              <span className="logo-grip">GRIP </span><span className="logo-glow">GLOW</span>
+              <span className="footer__logo-badge">
+                <span className="logo-grip">GRIP&nbsp;</span><span className="logo-glow">GLOW</span>
+              </span>
             </Link>
           </div>
 
@@ -86,41 +84,16 @@ export default function Footer() {
       <div className="footer__bottom">
         <div className="container footer__bottom-inner">
           <div className="pay-row" aria-label="Accepted payment methods">
-            <span className="pay-pill pay-visa">VISA</span>
-            <span className="pay-pill pay-mc">MC</span>
-            <span className="pay-pill pay-amex">AMEX</span>
-            <span className="pay-pill pay-apple">&#63743; Pay</span>
-            <span className="pay-pill pay-google">G Pay</span>
-            <span className="pay-pill pay-paypal">PayPal</span>
-            <span className="pay-pill pay-shop">Shop</span>
+            <img src="/pay-visa.png" alt="Visa" className="pay-method-badge" />
+            <img src="/pay-mc.png" alt="Mastercard" className="pay-method-badge" />
+            <img src="/pay-amex.png" alt="American Express" className="pay-method-badge" />
+            <img src="/pay-applepay.png" alt="Apple Pay" className="pay-method-badge" />
+            <img src="/pay-googlepay.png" alt="Google Pay" className="pay-method-badge" />
+            <img src="/pay-paypal.png" alt="PayPal" className="pay-method-badge" />
+            <img src="/pay-shop.png" alt="Shop Pay" className="pay-method-badge" />
           </div>
           <p className="footer__copyright">© 2026, Grip Glow</p>
         </div>
-      </div>
-
-      {/* Currency selector */}
-      <div className="currency-sel" style={{position:'fixed', bottom:20, left:20, zIndex:800}}>
-        <button
-          className="currency-sel__btn"
-          aria-haspopup="listbox"
-          aria-expanded={dropOpen}
-          aria-label="Select currency"
-          onClick={() => setDropOpen(o => !o)}
-        >
-          <img src={`https://flagcdn.com/w20/${selectedCountry.flag}.png`} alt={`${selectedCountry.code} flag`} width="20" height="14" />
-          <span>{selectedCountry.code}</span>
-          <svg className="currency-sel__chevron" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-            <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd"/>
-          </svg>
-        </button>
-        <ul className={`currency-sel__drop${dropOpen ? ' open' : ''}`} role="listbox" aria-label="Currencies">
-          {countries.map(c => (
-            <li key={c.code} role="option" aria-selected={c.code === selectedCountry.code} tabIndex={0}
-              onClick={() => { setCountry(c); setDropOpen(false); }}
-              onKeyDown={e => { if (e.key === 'Enter') { setCountry(c); setDropOpen(false); }}}
-            >{c.label}</li>
-          ))}
-        </ul>
       </div>
     </footer>
   );

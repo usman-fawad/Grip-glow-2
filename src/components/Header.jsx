@@ -1,12 +1,25 @@
 import { useState, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
-import { useTheme } from '../context/ThemeContext';
+import { useCountry } from '../context/CountryContext';
 
 export default function Header() {
   const { totalQty, setIsOpen } = useCart();
-  const { theme, toggleTheme } = useTheme();
+  const { selectedCountry, setCountry, countries } = useCountry();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [currencyOpen, setCurrencyOpen] = useState(false);
+
+  // Close currency dropdown on click outside
+  useEffect(() => {
+    if (!currencyOpen) return;
+    const onDocClick = (e) => {
+      if (!e.target.closest('.header__currency')) {
+        setCurrencyOpen(false);
+      }
+    };
+    document.addEventListener('click', onDocClick);
+    return () => document.removeEventListener('click', onDocClick);
+  }, [currencyOpen]);
 
   // Close mobile menu on Escape key
   useEffect(() => {
@@ -58,31 +71,51 @@ export default function Header() {
           </nav>
 
           <div className="header__actions">
-            <button
-              className="theme-toggle-btn"
-              id="theme-toggle-btn"
-              aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
-              title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
-              onClick={toggleTheme}
-            >
-              {theme === 'dark' ? (
-                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#FFE600" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <circle cx="12" cy="12" r="5" fill="#FFE600" />
-                  <line x1="12" y1="1" x2="12" y2="3"/>
-                  <line x1="12" y1="21" x2="12" y2="23"/>
-                  <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
-                  <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
-                  <line x1="1" y1="12" x2="3" y2="12"/>
-                  <line x1="21" y1="12" x2="23" y2="12"/>
-                  <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
-                  <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+            {/* Currency Selector */}
+            <div className="header__currency currency-sel">
+              <button
+                type="button"
+                className="currency-sel__btn"
+                aria-haspopup="listbox"
+                aria-expanded={currencyOpen}
+                aria-label="Select currency"
+                onClick={() => setCurrencyOpen((o) => !o)}
+              >
+                <img
+                  src={`https://flagcdn.com/w20/${selectedCountry.flag}.png`}
+                  alt={`${selectedCountry.code} flag`}
+                  width="18"
+                  height="13"
+                />
+                <span className="currency-sel__code">{selectedCountry.code}</span>
+                <svg className="currency-sel__chevron" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                  <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd"/>
                 </svg>
-              ) : (
-                <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
-                </svg>
-              )}
-            </button>
+              </button>
+              <ul className={`currency-sel__drop${currencyOpen ? ' open' : ''}`} role="listbox" aria-label="Currencies">
+                {countries.map((c) => (
+                  <li
+                    key={c.code}
+                    role="option"
+                    aria-selected={c.code === selectedCountry.code}
+                    tabIndex={0}
+                    className={c.code === selectedCountry.code ? 'selected' : ''}
+                    onClick={() => {
+                      setCountry(c);
+                      setCurrencyOpen(false);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        setCountry(c);
+                        setCurrencyOpen(false);
+                      }
+                    }}
+                  >
+                    {c.label}
+                  </li>
+                ))}
+              </ul>
+            </div>
 
             <button
               className="cart-btn"

@@ -6,17 +6,10 @@ export default function AnnouncementBar() {
   return (
     <div className="ann-bar" role="banner" aria-label="Sale announcement">
       <div className="ann-bar__container">
-        {/* Promotional Message */}
-        <div className="ann-bar__promo">
-          <span className="ann-promo-badge">
-            <span className="ann-promo-tag">30% OFF</span>
-          </span>
-        </div>
-
         {/* Countdown Timer */}
         <div className="ann-bar__timer">
           <span className="ann-bar__text">
-            <strong>SALE ENDS</strong> IN
+            <strong>SALE&nbsp;ENDS</strong>&nbsp;IN
           </span>
           <div
             className="countdown"
