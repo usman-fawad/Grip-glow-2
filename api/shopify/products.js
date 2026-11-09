@@ -1,10 +1,5 @@
 import https from 'https';
 
-const SHOPIFY_DOMAIN = process.env.SHOPIFY_DOMAIN || process.env.VITE_SHOPIFY_DOMAIN || 'motht-1m.myshopify.com';
-const SHOPIFY_STOREFRONT_TOKEN = process.env.SHOPIFY_STOREFRONT_TOKEN || process.env.VITE_SHOPIFY_STOREFRONT_TOKEN || '16ccefd5c4a7e518daf939f2888d0ea2';
-const SHOPIFY_API_VERSION = process.env.SHOPIFY_API_VERSION || '2024-10';
-const SHOPIFY_PRIVATE_TOKEN = process.env.SHOPIFY_PRIVATE_TOKEN || '';
-
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
@@ -14,8 +9,27 @@ export default async function handler(req, res) {
     return res.status(204).end();
   }
 
+  if (req.method !== 'GET') {
+    return res.status(405).json({ success: false, error: 'Method not allowed' });
+  }
+
+  const SHOPIFY_DOMAIN = process.env.SHOPIFY_DOMAIN || 'fm0tht-mf.myshopify.com';
+  const SHOPIFY_STOREFRONT_TOKEN = process.env.SHOPIFY_STOREFRONT_TOKEN || '16ccefd5c4a7e518daf939f2888d0ea2';
+  const SHOPIFY_API_VERSION = process.env.SHOPIFY_API_VERSION || '2024-10';
+  const SHOPIFY_PRIVATE_TOKEN = process.env.SHOPIFY_PRIVATE_TOKEN || '';
+
   const query = `
     query GetProducts($first: Int = 10) {
+      shop {
+        name
+        primaryDomain {
+          url
+          host
+        }
+        paymentSettings {
+          currencyCode
+        }
+      }
       products(first: $first) {
         nodes {
           id
@@ -23,8 +37,23 @@ export default async function handler(req, res) {
           handle
           description
           descriptionHtml
+          availableForSale
           priceRange {
             minVariantPrice {
+              amount
+              currencyCode
+            }
+            maxVariantPrice {
+              amount
+              currencyCode
+            }
+          }
+          compareAtPriceRange {
+            minVariantPrice {
+              amount
+              currencyCode
+            }
+            maxVariantPrice {
               amount
               currencyCode
             }
@@ -34,9 +63,12 @@ export default async function handler(req, res) {
               id
               url
               altText
+              width
+              height
             }
           }
           options {
+            id
             name
             values
           }
@@ -49,12 +81,18 @@ export default async function handler(req, res) {
                 amount
                 currencyCode
               }
+              compareAtPrice {
+                amount
+                currencyCode
+              }
               selectedOptions {
                 name
                 value
               }
               image {
+                id
                 url
+                altText
               }
             }
           }
@@ -64,11 +102,11 @@ export default async function handler(req, res) {
   `;
 
   try {
-    const postData = JSON.stringify({ query });
+    const postData = JSON.stringify({ query, variables: { first: 10 } });
     const headers = {
       'Content-Type': 'application/json',
       'Content-Length': Buffer.byteLength(postData),
-      'User-Agent': 'ShopifyHeadless/1.0',
+      'User-Agent': 'GripGlowHeadless/1.0',
     };
 
     if (SHOPIFY_PRIVATE_TOKEN) {
@@ -90,24 +128,45 @@ export default async function handler(req, res) {
         resp.on('end', () => resolve({ status: resp.statusCode, body }));
       });
       r.on('error', reject);
-      r.on('timeout', () => { r.destroy(); reject(new Error('Timeout')); });
+      r.on('timeout', () => { r.destroy(); reject(new Error('Shopify request timed out')); });
       r.write(postData);
       r.end();
     });
 
-    const json = JSON.parse(shopifyRes.body);
-    if (shopifyRes.status === 200 && json.data) {
-      return res.status(200).json({
-        success: true,
-        products: json.data.products?.nodes || [],
+    let json;
+    try {
+      json = JSON.parse(shopifyRes.body);
+    } catch {
+      return res.status(502).json({
+        success: false,
+        error: `Unexpected non-JSON response from Shopify (HTTP ${shopifyRes.status}).`,
       });
     }
 
-    return res.status(shopifyRes.status || 502).json({
-      success: false,
-      error: `Shopify responded with HTTP ${shopifyRes.status}`,
+    if (shopifyRes.status !== 200 || (json.errors && json.errors.length > 0)) {
+      const msg = json.errors?.map(e => e.message).join(', ') || `Shopify responded with HTTP ${shopifyRes.status}`;
+      return res.status(shopifyRes.status === 200 ? 502 : (shopifyRes.status || 502)).json({
+        success: false,
+        error: msg,
+      });
+    }
+
+    if (!json.data) {
+      return res.status(502).json({
+        success: false,
+        error: 'Shopify returned an empty data payload.',
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      shop: json.data.shop || null,
+      products: json.data.products?.nodes || [],
     });
   } catch (err) {
-    return res.status(500).json({ success: false, error: err.message });
+    return res.status(500).json({
+      success: false,
+      error: err.message || 'Server error fetching Shopify products.',
+    });
   }
 }
