@@ -1,35 +1,26 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import FAQAccordion from '../components/FAQAccordion';
 import Footer from '../components/Footer';
 import { useCart } from '../context/CartContext';
-import { useCountdown } from '../context/CountdownContext';
 import { useCountry } from '../context/CountryContext';
-import { getShopifyProduct, matchVariant } from '../services/shopify';
+import { BASE_GBP_PRICE } from '../utils/currency';
+import {
+  getShopifyStoreData,
+  buildShopifyGallery,
+  matchVariant,
+  normalizeShopifyUrl,
+} from '../services/shopify';
 
-const BUNDLES = [
-  { qty: 1, label: '1 Light',  price: 87.00,  orig: 174.00, tag: null,           disc: null },
-  { qty: 2, label: '2 Lights', price: 174.00, orig: 348.00, tag: 'Most Popular', disc: '10% OFF' },
-  { qty: 3, label: '3 Lights', price: 261.00, orig: 522.00, tag: 'Best Value',   disc: '15% OFF' },
-];
-
-const GALLERY = [
-  { src: '/All colours Light for Work.png', alt: 'The Grip Glow Magnetic Work Light - All Colours' },
-  { src: '/Gif.mp4', alt: 'The Grip Glow Magnetic Work Light - In Action Demo', isVideo: true },
-  { src: '/Green Work Light.png', alt: 'The Grip Glow Magnetic Work Light - Green Edition', color: 'Green' },
-  { src: '/work light 2.png', alt: 'The Grip Glow Magnetic Work Light - High-Power COB Light' },
-  { src: '/work light 3.png', alt: 'The Grip Glow Magnetic Work Light - Dual 360° Magnetic Swivel Base' },
-  { src: '/work light 4.png', alt: 'The Grip Glow Magnetic Work Light - Engine Bay Mount' },
-  { src: '/work light 5.png', alt: 'The Grip Glow Magnetic Work Light - Under-Car & Chassis Mount' },
-  { src: '/work light 6.png', alt: 'The Grip Glow Magnetic Work Light - USB-C Rechargeable Battery' },
-  { src: '/work light 7.png', alt: 'The Grip Glow Magnetic Work Light - Rugged Water-Resistant Design' },
-  { src: '/Red LED Work Light .png', alt: 'The Grip Glow Magnetic Work Light - Red Edition', color: 'Red' },
-  { src: '/Yellow Work Light.png', alt: 'The Grip Glow Magnetic Work Light - Yellow Edition', color: 'Yellow' },
+const BUNDLE_TIERS = [
+  { qty: 1, label: '1 Light',  discountRate: 0,    tag: null,           disc: null },
+  { qty: 2, label: '2 Lights', discountRate: 0.1,  tag: 'Most Popular', disc: '10% OFF' },
+  { qty: 3, label: '3 Lights', discountRate: 0.15, tag: 'Best Value',   disc: '15% OFF' },
 ];
 
 const COLOR_OPTIONS = [
-  { name: 'Yellow', hex: '#FFE600', imgIndex: 10 },
-  { name: 'Green', hex: '#74d600', imgIndex: 2 },
-  { name: 'Red', hex: '#e52b2b', imgIndex: 9 },
+  { name: 'Yellow', hex: '#FFE600' },
+  { name: 'Green', hex: '#74d600' },
+  { name: 'Red', hex: '#e52b2b' },
 ];
 
 const FAQ_ITEMS = [
@@ -81,17 +72,10 @@ const REVIEW_BREAKDOWN = [
   { stars: 1, count: 0, percent: 0 },
 ];
 
-function getDeliveryDates() {
-  const today = new Date();
-  const fmt = (d) => d.toLocaleDateString('en-AU', { month: 'short', day: 'numeric' });
-  const add = (n) => { const d = new Date(today); d.setDate(d.getDate() + n); return d; };
-  return { ordered: fmt(today), ready: fmt(add(1)), delivered: fmt(add(3)) };
-}
-
 export default function ProductPage() {
   const [activeImg, setActiveImg] = useState(0);
   const [activeBundle, setActiveBundle] = useState(0);
-  const [bundleColors, setBundleColors] = useState(['Yellow', 'Green', 'Red']);
+  const [bundleColors, setBundleColors] = useState(['Green', 'Yellow', 'Red']);
   const [added, setAdded] = useState(false);
   const [activeReview, setActiveReview] = useState(0);
   const [showReviewModal, setShowReviewModal] = useState(false);
@@ -101,13 +85,40 @@ export default function ProductPage() {
   const [reviewSubmitted, setReviewSubmitted] = useState(false);
   const [shopifyProduct, setShopifyProduct] = useState(null);
   const [shopifyVariants, setShopifyVariants] = useState([]);
+  const [gallery, setGallery] = useState([]);
+  const [isLoadingMedia, setIsLoadingMedia] = useState(true);
+  const [mediaError, setMediaError] = useState(null);
   const thumbsRef = useRef(null);
   const videoRef = useRef(null);
   const reviewVideoRef = useRef(null);
   const reviewTrackRef = useRef(null);
   const { addItem } = useCart();
-  const { time } = useCountdown();
-  const { selectedCountry } = useCountry();
+  const { selectedCountry, getUnitPrice, formatPrice } = useCountry();
+
+  const selectedColor = bundleColors[0] || 'Green';
+  const activeShopifyVariant = matchVariant(shopifyVariants, selectedColor);
+  const rawShopifyGbp = parseFloat(
+    activeShopifyVariant?.price?.amount || shopifyProduct?.priceRange?.minVariantPrice?.amount
+  );
+  const liveGbpUnit = Number.isFinite(rawShopifyGbp) && rawShopifyGbp > 0 ? rawShopifyGbp : BASE_GBP_PRICE;
+  const rawShopifyCompare = parseFloat(
+    activeShopifyVariant?.compareAtPrice?.amount || shopifyProduct?.compareAtPriceRange?.minVariantPrice?.amount
+  );
+  const displayUnitPrice = getUnitPrice(liveGbpUnit);
+  const displayOrigSingle =
+    Number.isFinite(rawShopifyCompare) && rawShopifyCompare > liveGbpUnit
+      ? getUnitPrice(rawShopifyCompare)
+      : +(displayUnitPrice * 2).toFixed(2);
+
+  const bundles = BUNDLE_TIERS.map((tier) => {
+    const regularTotal = +(displayUnitPrice * tier.qty).toFixed(2);
+    const discountedTotal = +(displayUnitPrice * tier.qty * (1 - tier.discountRate)).toFixed(2);
+    return {
+      ...tier,
+      price: discountedTotal,
+      orig: tier.qty === 1 ? displayOrigSingle : regularTotal,
+    };
+  });
 
   const scrollReviewToIndex = (index) => {
     const nextIdx = (index + FAVORITE_REVIEWS.length) % FAVORITE_REVIEWS.length;
@@ -157,37 +168,58 @@ export default function ProductPage() {
     document.title = 'The Grip Glow — Magnetic LED Work Light | GRIP GLOW';
   }, []);
 
-  // Fetch product data and variant IDs from Shopify Storefront API
-  useEffect(() => {
-    let isMounted = true;
-    getShopifyProduct()
-      .then((product) => {
-        if (!isMounted || !product) return;
-        setShopifyProduct(product);
-        if (product.variants?.nodes?.length > 0) {
-          setShopifyVariants(product.variants.nodes);
-          console.log('[Shopify] Synced product variants:', product.variants.nodes);
-        }
-      })
-      .catch((err) => {
-        console.warn('[Shopify] Could not fetch live product data:', err.message);
-      });
-    return () => {
-      isMounted = false;
-    };
+  const loadShopifyProduct = useCallback(async (signalRef = { cancelled: false }) => {
+    setIsLoadingMedia(true);
+    setMediaError(null);
+    try {
+      const { products } = await getShopifyStoreData();
+      if (signalRef.cancelled) return;
+      const product = products?.[0] || null;
+      if (!product) {
+        throw new Error('No product returned from Shopify.');
+      }
+      setShopifyProduct(product);
+      const variants = product.variants?.nodes || [];
+      if (variants.length > 0) {
+        setShopifyVariants(variants);
+        console.log('[Shopify] Synced product variants:', variants);
+      }
+      const mediaList = buildShopifyGallery(product);
+      setGallery(mediaList);
+      setActiveImg((prev) => (mediaList.length > 0 ? Math.min(prev, mediaList.length - 1) : 0));
+      console.log('[Shopify] Synced product images/media:', mediaList.length);
+    } catch (err) {
+      if (signalRef.cancelled) return;
+      console.warn('[Shopify] Could not fetch live product data:', err.message);
+      setMediaError(err.message || 'Unable to load product images from Shopify.');
+    } finally {
+      if (!signalRef.cancelled) {
+        setIsLoadingMedia(false);
+      }
+    }
   }, []);
 
-  // Synchronize colour when active image changes to a colour edition
+  // Fetch product data, images, and variant IDs from Shopify Storefront API
   useEffect(() => {
-    const current = GALLERY[activeImg];
-    if (current && current.color) {
+    const signalRef = { cancelled: false };
+    loadShopifyProduct(signalRef);
+    return () => {
+      signalRef.cancelled = true;
+    };
+  }, [loadShopifyProduct]);
+
+  const selectMediaIndex = useCallback((nextIndex) => {
+    setActiveImg(nextIndex);
+    const target = gallery[nextIndex];
+    if (target?.color) {
       setBundleColors((prev) => {
+        if (prev[0] === target.color) return prev;
         const next = [...prev];
-        next[0] = current.color;
+        next[0] = target.color;
         return next;
       });
     }
-  }, [activeImg]);
+  }, [gallery]);
 
   const handleColorChange = (lightIndex, colorName) => {
     setBundleColors((prev) => {
@@ -196,9 +228,15 @@ export default function ProductPage() {
       return next;
     });
 
-    const opt = COLOR_OPTIONS.find((c) => c.name === colorName);
-    if (opt && opt.imgIndex !== undefined) {
-      setActiveImg(opt.imgIndex);
+    const matched = matchVariant(shopifyVariants, colorName);
+    const variantImgKey = normalizeShopifyUrl(matched?.image?.url);
+    const idx = gallery.findIndex(
+      (item) =>
+        (variantImgKey && normalizeShopifyUrl(item.src) === variantImgKey) ||
+        (item.color && item.color.toLowerCase() === colorName.toLowerCase())
+    );
+    if (idx >= 0) {
+      setActiveImg(idx);
     }
   };
 
@@ -233,13 +271,17 @@ export default function ProductPage() {
     }
   };
 
-  const handlePrev = () => {
-    setActiveImg((prev) => (prev === 0 ? GALLERY.length - 1 : prev - 1));
-  };
+  const handlePrev = useCallback(() => {
+    if (gallery.length === 0) return;
+    const nextIndex = activeImg <= 0 ? gallery.length - 1 : activeImg - 1;
+    selectMediaIndex(nextIndex);
+  }, [activeImg, gallery.length, selectMediaIndex]);
 
-  const handleNext = () => {
-    setActiveImg((prev) => (prev === GALLERY.length - 1 ? 0 : prev + 1));
-  };
+  const handleNext = useCallback(() => {
+    if (gallery.length === 0) return;
+    const nextIndex = activeImg >= gallery.length - 1 ? 0 : activeImg + 1;
+    selectMediaIndex(nextIndex);
+  }, [activeImg, gallery.length, selectMediaIndex]);
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -254,7 +296,7 @@ export default function ProductPage() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [handlePrev, handleNext]);
 
   useEffect(() => {
     const container = thumbsRef.current;
@@ -269,10 +311,9 @@ export default function ProductPage() {
   }, [activeImg]);
 
   const handleAddToCart = () => {
-    const b = BUNDLES[activeBundle];
+    const b = bundles[activeBundle];
     const colors = bundleColors.slice(0, b.qty);
     const colorStr = colors.join(' + ');
-    const firstOpt = COLOR_OPTIONS.find((c) => c.name === colors[0]) || COLOR_OPTIONS[0];
 
     const variantText = b.qty === 1 ? `${colors[0]} · 1 Light` : `${colors.join(', ')} · ${b.label}`;
 
@@ -288,15 +329,13 @@ export default function ProductPage() {
 
     const primaryVariant = matchVariant(shopifyVariants, colors[0]);
     const primaryShopifyId = primaryVariant?.id || `gid://shopify/ProductVariant/fake-${colors[0].toLowerCase()}`;
-
-    // Price synchronization from Shopify variant if available
-    let dynamicPrice = b.price;
-    if (primaryVariant?.price?.amount) {
-      const unit = parseFloat(primaryVariant.price.amount);
-      if (b.qty === 1) dynamicPrice = unit;
-      else if (b.qty === 2) dynamicPrice = +(unit * 2 * 0.9).toFixed(2);
-      else if (b.qty === 3) dynamicPrice = +(unit * 3 * 0.85).toFixed(2);
-    }
+    const itemGbpUnit = parseFloat(primaryVariant?.price?.amount) || liveGbpUnit;
+    const cartImg =
+      primaryVariant?.image?.url ||
+      gallery.find((item) => !item.isVideo && item.color?.toLowerCase() === colors[0].toLowerCase())?.src ||
+      gallery.find((item) => !item.isVideo)?.src ||
+      shopifyProduct?.featuredImage?.url ||
+      '';
 
     addItem(
       {
@@ -306,14 +345,20 @@ export default function ProductPage() {
         name: `The Grip Glow (${colorStr}) ×${b.qty}`,
         title: shopifyProduct?.title || 'The Grip Glow Magnetic Work Light',
         variant: variantText,
-        price: dynamicPrice,
-        img: GALLERY[firstOpt.imgIndex].src,
+        qtyUnits: b.qty,
+        discountRate: b.discountRate,
+        gbpUnitPrice: itemGbpUnit,
+        price: b.price,
+        img: cartImg,
       },
       1
     );
     setAdded(true);
     setTimeout(() => setAdded(false), 2500);
   };
+
+  const safeActiveIdx = gallery.length > 0 ? Math.min(activeImg, gallery.length - 1) : 0;
+  const activeMedia = gallery[safeActiveIdx] || null;
 
   // Determine delivery text based on selected country
   const deliveryHeadline =
@@ -336,137 +381,183 @@ export default function ProductPage() {
               {/* ── LEFT: Gallery ── */}
               <div className="gallery">
                 <div className="gallery__main" aria-roledescription="carousel" aria-label="Product Image Carousel">
-                  <button
-                    type="button"
-                    className="gallery__nav-btn gallery__nav-btn--prev"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      handlePrev();
-                    }}
-                    onMouseDown={(e) => e.preventDefault()}
-                    aria-label="Previous image"
-                  >
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" width="20" height="20">
-                      <polyline points="15 18 9 12 15 6" />
-                    </svg>
-                  </button>
-
-                  {GALLERY[activeImg].isVideo ? (
-                    <video
-                      key={GALLERY[activeImg].src}
-                      src={GALLERY[activeImg].src}
-                      className="gallery__main-img gallery__main-video"
-                      autoPlay
-                      loop
-                      muted
-                      playsInline
-                      aria-label={GALLERY[activeImg].alt}
-                      style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', pointerEvents: 'none' }}
-                    />
-                  ) : (
-                    <img
-                      src={GALLERY[activeImg].src}
-                      alt={GALLERY[activeImg].alt}
-                      className="gallery__main-img"
-                    />
+                  {gallery.length > 1 && (
+                    <button
+                      type="button"
+                      className="gallery__nav-btn gallery__nav-btn--prev"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handlePrev();
+                      }}
+                      onMouseDown={(e) => e.preventDefault()}
+                      aria-label="Previous image"
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" width="20" height="20">
+                        <polyline points="15 18 9 12 15 6" />
+                      </svg>
+                    </button>
                   )}
 
-                  <button
-                    type="button"
-                    className="gallery__nav-btn gallery__nav-btn--next"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      handleNext();
-                    }}
-                    onMouseDown={(e) => e.preventDefault()}
-                    aria-label="Next image"
-                  >
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" width="20" height="20">
-                      <polyline points="9 18 15 12 9 6" />
-                    </svg>
-                  </button>
+                  {activeMedia ? (
+                    activeMedia.isVideo ? (
+                      <video
+                        key={activeMedia.src}
+                        src={activeMedia.src}
+                        poster={activeMedia.poster}
+                        className="gallery__main-img gallery__main-video"
+                        autoPlay
+                        loop
+                        muted
+                        playsInline
+                        aria-label={activeMedia.alt}
+                        style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', pointerEvents: 'none' }}
+                      />
+                    ) : (
+                      <img
+                        src={activeMedia.src}
+                        alt={activeMedia.alt}
+                        className="gallery__main-img"
+                      />
+                    )
+                  ) : isLoadingMedia ? (
+                    <div className="gallery__skeleton-pulse" role="status" aria-label="Loading product images from Shopify" />
+                  ) : (
+                    <div className="gallery__status" role="alert">
+                      <p>{mediaError || 'No product images found in Shopify.'}</p>
+                      <button
+                        type="button"
+                        className="btn btn-green"
+                        onClick={() => loadShopifyProduct()}
+                      >
+                        Retry
+                      </button>
+                    </div>
+                  )}
+
+                  {gallery.length > 1 && (
+                    <button
+                      type="button"
+                      className="gallery__nav-btn gallery__nav-btn--next"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleNext();
+                      }}
+                      onMouseDown={(e) => e.preventDefault()}
+                      aria-label="Next image"
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" width="20" height="20">
+                        <polyline points="9 18 15 12 9 6" />
+                      </svg>
+                    </button>
+                  )}
                 </div>
 
                 <div className="gallery__thumbs" role="list" ref={thumbsRef}>
-                  {GALLERY.map((img, i) => (
-                    img.isVideo ? (
-                      <div
-                        key={i}
-                        className="gallery__thumb-wrapper"
-                        style={{ position: 'relative', display: 'inline-flex', flexShrink: 0 }}
-                        onClick={(e) => {
-                          e.preventDefault();
-                          setActiveImg(i);
-                        }}
-                      >
-                        <video
+                  {isLoadingMedia && gallery.length === 0 ? (
+                    [0, 1, 2, 3].map((idx) => (
+                      <div key={idx} className="gallery__thumb-skeleton" aria-hidden="true" />
+                    ))
+                  ) : (
+                    gallery.map((img, i) => (
+                      img.isVideo ? (
+                        <div
+                          key={img.src || i}
+                          className="gallery__thumb-wrapper"
+                          style={{ position: 'relative', display: 'inline-flex', flexShrink: 0 }}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            selectMediaIndex(i);
+                          }}
+                        >
+                          {img.poster ? (
+                            <img
+                              src={img.poster}
+                              alt={img.alt}
+                              className={`gallery__thumb${safeActiveIdx === i ? ' active' : ''}`}
+                              style={{ objectFit: 'cover' }}
+                              role="listitem"
+                              tabIndex={0}
+                              aria-label={`View demonstration video ${i + 1}: ${img.alt}`}
+                              aria-current={safeActiveIdx === i}
+                              onMouseDown={(e) => e.preventDefault()}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                  e.preventDefault();
+                                  selectMediaIndex(i);
+                                }
+                              }}
+                            />
+                          ) : (
+                            <video
+                              src={img.src}
+                              muted
+                              loop
+                              autoPlay
+                              playsInline
+                              className={`gallery__thumb${safeActiveIdx === i ? ' active' : ''}`}
+                              style={{ objectFit: 'cover' }}
+                              role="listitem"
+                              tabIndex={0}
+                              aria-label={`View demonstration video ${i + 1}: ${img.alt}`}
+                              aria-current={safeActiveIdx === i}
+                              onMouseDown={(e) => e.preventDefault()}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                  e.preventDefault();
+                                  selectMediaIndex(i);
+                                }
+                              }}
+                            />
+                          )}
+                          <span
+                            className="gallery__thumb-badge"
+                            aria-hidden="true"
+                            style={{
+                              position: 'absolute',
+                              bottom: 4,
+                              right: 4,
+                              background: 'rgba(0, 0, 0, 0.75)',
+                              borderRadius: '50%',
+                              width: 18,
+                              height: 18,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              pointerEvents: 'none',
+                            }}
+                          >
+                            <svg viewBox="0 0 24 24" fill="#A8C34A" width="10" height="10">
+                              <polygon points="5 3 19 12 5 21 5 3" />
+                            </svg>
+                          </span>
+                        </div>
+                      ) : (
+                        <img
+                          key={img.src || i}
                           src={img.src}
-                          muted
-                          loop
-                          autoPlay
-                          playsInline
-                          className={`gallery__thumb${activeImg === i ? ' active' : ''}`}
-                          style={{ objectFit: 'cover' }}
-                          role="listitem"
-                          tabIndex={0}
-                          aria-label={`View demonstration video ${i + 1}: ${img.alt}`}
-                          aria-current={activeImg === i}
+                          alt={img.alt}
+                          className={`gallery__thumb${safeActiveIdx === i ? ' active' : ''}`}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            selectMediaIndex(i);
+                          }}
                           onMouseDown={(e) => e.preventDefault()}
                           onKeyDown={(e) => {
                             if (e.key === 'Enter' || e.key === ' ') {
                               e.preventDefault();
-                              setActiveImg(i);
+                              selectMediaIndex(i);
                             }
                           }}
+                          role="listitem"
+                          tabIndex={0}
+                          aria-label={`View image ${i + 1}: ${img.alt}`}
+                          aria-current={safeActiveIdx === i}
                         />
-                        <span
-                          className="gallery__thumb-badge"
-                          aria-hidden="true"
-                          style={{
-                            position: 'absolute',
-                            bottom: 4,
-                            right: 4,
-                            background: 'rgba(0, 0, 0, 0.75)',
-                            borderRadius: '50%',
-                            width: 18,
-                            height: 18,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            pointerEvents: 'none',
-                          }}
-                        >
-                          <svg viewBox="0 0 24 24" fill="#E52B2B" width="10" height="10">
-                            <polygon points="5 3 19 12 5 21 5 3" />
-                          </svg>
-                        </span>
-                      </div>
-                    ) : (
-                      <img
-                        key={i}
-                        src={img.src}
-                        alt={img.alt}
-                        className={`gallery__thumb${activeImg === i ? ' active' : ''}`}
-                        onClick={(e) => {
-                          e.preventDefault();
-                          setActiveImg(i);
-                        }}
-                        onMouseDown={(e) => e.preventDefault()}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' || e.key === ' ') {
-                            e.preventDefault();
-                            setActiveImg(i);
-                          }
-                        }}
-                        role="listitem"
-                        tabIndex={0}
-                        aria-label={`View image ${i + 1}: ${img.alt}`}
-                        aria-current={activeImg === i}
-                      />
-                    )
-                  ))}
+                      )
+                    ))
+                  )}
                 </div>
               </div>
 
@@ -496,10 +587,10 @@ export default function ProductPage() {
 
                 </div>
 
-                {/* Price Row (30% OFF) */}
+                {/* Price Row */}
                 <div className="pi__price-row">
-                  <span className="pi__price-cur">$87.00 AUD</span>
-                  <span className="pi__price-orig">$174.00 AUD</span>
+                  <span className="pi__price-cur">{formatPrice(displayUnitPrice)}</span>
+                  <span className="pi__price-orig">{formatPrice(displayOrigSingle)}</span>
                   <span className="pi__sale-pill">SALE 30% OFF</span>
                 </div>
 
@@ -529,26 +620,26 @@ export default function ProductPage() {
                 <div className="pi__color-selector" aria-label="Select product colour">
                   <div className="pi__color-header">
                     <span className="pi__color-label">Colour:</span>
-                    <span className="pi__color-name">{bundleColors[0] || 'Yellow'}</span>
+                    <span className="pi__color-name">{bundleColors[0] || 'Green'}</span>
                   </div>
-                  <div className="bundle-color-swatches" role="radiogroup" aria-label="Select colour">
+                  <div className="pi__color-swatches" role="radiogroup" aria-label="Select colour">
                     {COLOR_OPTIONS.map((opt) => {
-                      const isActive = (bundleColors[0] || 'Yellow') === opt.name;
+                      const isActive = (bundleColors[0] || 'Green') === opt.name;
                       return (
                         <button
                           key={opt.name}
                           type="button"
-                          className={`bundle-color-pill${isActive ? ' active' : ''}`}
+                          className={`pi__color-btn${isActive ? ' active' : ''}`}
                           onClick={() => handleColorChange(0, opt.name)}
+                          aria-label={`Select ${opt.name} colour`}
                           aria-checked={isActive}
                           role="radio"
                           title={opt.name}
                         >
                           <span
-                            className={`bundle-color-circle bundle-color-circle--${opt.name.toLowerCase()}`}
+                            className={`pi__color-circle pi__color-circle--${opt.name.toLowerCase()}`}
                             style={{ background: opt.hex }}
                           />
-                          <span className="bundle-color-name">{opt.name}</span>
                         </button>
                       );
                     })}
@@ -573,7 +664,7 @@ export default function ProductPage() {
                 {/* Bundle selector */}
                 <p className="bundle-label">How Many Do You Need?</p>
                 <div className="bundle-grid" role="group" aria-label="Bundle options">
-                  {BUNDLES.map((b, i) => (
+                  {bundles.map((b, i) => (
                     <div
                       key={i}
                       className={`bundle-card${activeBundle === i ? ' active' : ''}`}
@@ -582,12 +673,12 @@ export default function ProductPage() {
                       tabIndex={0}
                       role="radio"
                       aria-checked={activeBundle === i}
-                      aria-label={`${b.label}, $${b.price.toFixed(2)} AUD`}
+                      aria-label={`${b.label}, ${formatPrice(b.price)}`}
                     >
                       {b.tag && <span className="bundle-card__tag">{b.tag}</span>}
                       <span className="bundle-card__num">{b.label}</span>
-                      <span className="bundle-card__price">${b.price.toFixed(2)} AUD</span>
-                      <span className="bundle-card__orig">${b.orig.toFixed(2)} AUD</span>
+                      <span className="bundle-card__price">{formatPrice(b.price)}</span>
+                      <span className="bundle-card__orig">{formatPrice(b.orig)}</span>
                       {b.disc && <span className="bundle-card__disc">{b.disc}</span>}
                     </div>
                   ))}
@@ -600,7 +691,7 @@ export default function ProductPage() {
                   onClick={handleAddToCart}
                   aria-live="polite"
                 >
-                  {added ? '✓ Added to Cart!' : `ADD TO CART — $${BUNDLES[activeBundle].price.toFixed(2)} AUD`}
+                  {added ? '✓ Added to Cart!' : `ADD TO CART — ${formatPrice(bundles[activeBundle].price)}`}
                 </button>
 
                 <p className="guarantee-row">
@@ -624,7 +715,7 @@ export default function ProductPage() {
                 {/* Product Trust Badges */}
                 <div className="product-trust-badges" aria-label="Product guarantees">
                   <div className="product-trust-badge">
-                    <svg className="product-trust-badge__icon" viewBox="0 0 24 24" fill="none" stroke="#FF5426" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <svg className="product-trust-badge__icon" viewBox="0 0 24 24" fill="none" stroke="#A8C34A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                       <rect x="1" y="4" width="14" height="12" rx="2" />
                       <path d="M15 8h4l3 3v5h-7V8z" />
                       <circle cx="5.5" cy="18.5" r="2.5" />
@@ -634,14 +725,14 @@ export default function ProductPage() {
                   </div>
 
                   <div className="product-trust-badge">
-                    <svg className="product-trust-badge__icon" viewBox="0 0 24 24" fill="none" stroke="#FF5426" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <svg className="product-trust-badge__icon" viewBox="0 0 24 24" fill="none" stroke="#A8C34A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                       <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
                     </svg>
                     <span className="product-trust-badge__text">30-Day Returns</span>
                   </div>
 
                   <div className="product-trust-badge">
-                    <svg className="product-trust-badge__icon" viewBox="0 0 24 24" fill="none" stroke="#FF5426" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <svg className="product-trust-badge__icon" viewBox="0 0 24 24" fill="none" stroke="#A8C34A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                       <path d="M19.5 12.572l-7.5 7.428l-7.5 -7.428a5 5 0 1 1 7.5 -6.566a5 5 0 1 1 7.5 6.572" />
                       <path d="M12 6l-3.293 3.293a1 1 0 0 0 0 1.414l.586 .586a1 1 0 0 0 1.414 0l2.293 -2.293l2.293 2.293a1 1 0 0 0 1.414 0l.586 -.586a1 1 0 0 0 0 -1.414l-3.293 -3.293a1 1 0 0 0 -1.414 0z" />
                     </svg>
@@ -687,21 +778,21 @@ export default function ProductPage() {
                 <div className="job-benefit">
                   <div className="job-benefit__header">
                     <div className="job-benefit__icon" aria-hidden="true">
-                      <svg viewBox="0 0 54 44" fill="none" stroke="#E52B2B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="46" height="38">
+                      <svg viewBox="0 0 54 44" fill="none" stroke="#A8C34A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="46" height="38">
                         <line x1="12" y1="4" x2="12" y2="6" strokeWidth="2" />
                         <line x1="20" y1="3" x2="20" y2="5" strokeWidth="2" />
                         <line x1="27" y1="2" x2="27" y2="5" strokeWidth="2" />
                         <line x1="34" y1="3" x2="34" y2="5" strokeWidth="2" />
                         <line x1="42" y1="4" x2="42" y2="6" strokeWidth="2" />
-                        <rect x="8" y="9" width="38" height="26" rx="4" stroke="#E52B2B" strokeWidth="2" />
-                        <circle cx="16" cy="18" r="1.5" fill="#E52B2B" />
-                        <circle cx="23" cy="18" r="1.5" fill="#E52B2B" />
-                        <circle cx="31" cy="18" r="1.5" fill="#E52B2B" />
-                        <circle cx="38" cy="18" r="1.5" fill="#E52B2B" />
-                        <circle cx="16" cy="26" r="1.5" fill="#E52B2B" />
-                        <circle cx="23" cy="26" r="1.5" fill="#E52B2B" />
-                        <circle cx="31" cy="26" r="1.5" fill="#E52B2B" />
-                        <circle cx="38" cy="26" r="1.5" fill="#E52B2B" />
+                        <rect x="8" y="9" width="38" height="26" rx="4" stroke="#A8C34A" strokeWidth="2" />
+                        <circle cx="16" cy="18" r="1.5" fill="#A8C34A" />
+                        <circle cx="23" cy="18" r="1.5" fill="#A8C34A" />
+                        <circle cx="31" cy="18" r="1.5" fill="#A8C34A" />
+                        <circle cx="38" cy="18" r="1.5" fill="#A8C34A" />
+                        <circle cx="16" cy="26" r="1.5" fill="#A8C34A" />
+                        <circle cx="23" cy="26" r="1.5" fill="#A8C34A" />
+                        <circle cx="31" cy="26" r="1.5" fill="#A8C34A" />
+                        <circle cx="38" cy="26" r="1.5" fill="#A8C34A" />
                         <line x1="3" y1="22" x2="5" y2="22" strokeWidth="2" />
                         <line x1="49" y1="22" x2="51" y2="22" strokeWidth="2" />
                         <line x1="16" y1="39" x2="16" y2="41" strokeWidth="2" />
@@ -719,12 +810,12 @@ export default function ProductPage() {
                 <div className="job-benefit">
                   <div className="job-benefit__header">
                     <div className="job-benefit__icon" aria-hidden="true">
-                      <svg viewBox="0 0 54 44" fill="none" stroke="#E52B2B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="46" height="38">
-                        <rect x="6" y="8" width="42" height="28" rx="5" stroke="#E52B2B" strokeWidth="2.2" />
-                        <line x1="14" y1="22" x2="22" y2="22" strokeWidth="2.5" stroke="#E52B2B" />
-                        <line x1="28" y1="22" x2="34" y2="22" strokeWidth="2.5" stroke="#E52B2B" />
-                        <circle cx="39" cy="15" r="1.5" fill="#E52B2B" />
-                        <line x1="14" y1="15" x2="26" y2="15" strokeWidth="1.8" stroke="#E52B2B" />
+                      <svg viewBox="0 0 54 44" fill="none" stroke="#A8C34A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="46" height="38">
+                        <rect x="6" y="8" width="42" height="28" rx="5" stroke="#A8C34A" strokeWidth="2.2" />
+                        <line x1="14" y1="22" x2="22" y2="22" strokeWidth="2.5" stroke="#A8C34A" />
+                        <line x1="28" y1="22" x2="34" y2="22" strokeWidth="2.5" stroke="#A8C34A" />
+                        <circle cx="39" cy="15" r="1.5" fill="#A8C34A" />
+                        <line x1="14" y1="15" x2="26" y2="15" strokeWidth="1.8" stroke="#A8C34A" />
                       </svg>
                     </div>
                     <h3 className="job-benefit__title">Digital Battery Display</h3>
@@ -760,11 +851,11 @@ export default function ProductPage() {
                 <div className="job-benefit">
                   <div className="job-benefit__header">
                     <div className="job-benefit__icon" aria-hidden="true">
-                      <svg viewBox="0 0 48 48" fill="none" stroke="#E52B2B" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" width="44" height="44">
-                        <circle cx="24" cy="24" r="20" stroke="#E52B2B" strokeWidth="2.2" strokeDasharray="30 8 30 8" />
-                        <path d="M21 4L24 1L27 4" stroke="#E52B2B" strokeWidth="2.2" />
-                        <path d="M27 44L24 47L21 44" stroke="#E52B2B" strokeWidth="2.2" />
-                        <text x="24" y="29" fill="#E52B2B" fontSize="13" fontWeight="900" fontFamily="Poppins, sans-serif" textAnchor="middle" stroke="none">360°</text>
+                      <svg viewBox="0 0 48 48" fill="none" stroke="#A8C34A" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" width="44" height="44">
+                        <circle cx="24" cy="24" r="20" stroke="#A8C34A" strokeWidth="2.2" strokeDasharray="30 8 30 8" />
+                        <path d="M21 4L24 1L27 4" stroke="#A8C34A" strokeWidth="2.2" />
+                        <path d="M27 44L24 47L21 44" stroke="#A8C34A" strokeWidth="2.2" />
+                        <text x="24" y="29" fill="#A8C34A" fontSize="13" fontWeight="900" fontFamily="Poppins, sans-serif" textAnchor="middle" stroke="none">360°</text>
                       </svg>
                     </div>
                     <h3 className="job-benefit__title">360° Rotating Design</h3>
@@ -777,13 +868,13 @@ export default function ProductPage() {
                 <div className="job-benefit">
                   <div className="job-benefit__header">
                     <div className="job-benefit__icon" aria-hidden="true">
-                      <svg viewBox="0 0 48 48" fill="none" stroke="#E52B2B" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" width="44" height="44">
-                        <circle cx="24" cy="24" r="20" stroke="#E52B2B" strokeWidth="2.2" />
+                      <svg viewBox="0 0 48 48" fill="none" stroke="#A8C34A" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" width="44" height="44">
+                        <circle cx="24" cy="24" r="20" stroke="#A8C34A" strokeWidth="2.2" />
                         <line x1="18" y1="15" x2="18" y2="19" strokeWidth="2.4" />
                         <line x1="30" y1="15" x2="30" y2="19" strokeWidth="2.4" />
                         <rect x="15" y="19" width="18" height="11" rx="3" strokeWidth="2.2" />
                         <line x1="24" y1="30" x2="24" y2="34" strokeWidth="2.4" />
-                        <line x1="10" y1="38" x2="38" y2="10" stroke="#E52B2B" strokeWidth="2.5" />
+                        <line x1="10" y1="38" x2="38" y2="10" stroke="#A8C34A" strokeWidth="2.5" />
                       </svg>
                     </div>
                     <h3 className="job-benefit__title">Cordless Use</h3>
@@ -893,7 +984,7 @@ export default function ProductPage() {
                 From First Use To <span className="favorite-tool-highlight">
                   Favorite Tool
                   <svg className="favorite-tool-brush" viewBox="0 0 160 12" fill="none" preserveAspectRatio="none" aria-hidden="true">
-                    <path d="M3 8C45 3.5 105 2.5 157 6.5C115 10 50 11 3 8Z" fill="#9ecb2a" opacity="0.85"/>
+                    <path d="M3 8C45 3.5 105 2.5 157 6.5C115 10 50 11 3 8Z" fill="#A8C34A" opacity="0.85"/>
                   </svg>
                 </span>
               </h2>

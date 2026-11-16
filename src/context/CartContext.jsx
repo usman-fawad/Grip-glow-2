@@ -1,9 +1,12 @@
 import { createContext, useContext, useState, useCallback } from 'react';
 import { createShopifyCart } from '../services/shopify';
+import { useCountry } from './CountryContext';
+import { BASE_GBP_PRICE } from '../utils/currency';
 
 const CartContext = createContext(null);
 
 export function CartProvider({ children }) {
+  const { getUnitPrice } = useCountry();
   const [items, setItems] = useState([]);
   const [isOpen, setIsOpen] = useState(false);
   const [isCheckingOut, setIsCheckingOut] = useState(false);
@@ -120,8 +123,17 @@ export function CartProvider({ children }) {
     }
   }, [items]);
 
+  const getItemPrice = useCallback((item) => {
+    if (item?.qtyUnits) {
+      const unit = getUnitPrice(item.gbpUnitPrice || BASE_GBP_PRICE);
+      const mult = 1 - (item.discountRate || 0);
+      return +(unit * item.qtyUnits * mult).toFixed(2);
+    }
+    return Number(item?.price) || 0;
+  }, [getUnitPrice]);
+
   const totalQty = items.reduce((s, i) => s + i.qty, 0);
-  const totalPrice = items.reduce((s, i) => s + i.price * i.qty, 0);
+  const totalPrice = items.reduce((s, i) => s + getItemPrice(i) * i.qty, 0);
 
   return (
     <CartContext.Provider
@@ -136,6 +148,7 @@ export function CartProvider({ children }) {
         setIsOpen,
         totalQty,
         totalPrice,
+        getItemPrice,
         isCheckingOut,
         checkoutError,
         clearCheckoutError,

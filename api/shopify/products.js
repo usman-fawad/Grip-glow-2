@@ -38,6 +38,13 @@ export default async function handler(req, res) {
           description
           descriptionHtml
           availableForSale
+          featuredImage {
+            id
+            url
+            altText
+            width
+            height
+          }
           priceRange {
             minVariantPrice {
               amount
@@ -58,13 +65,41 @@ export default async function handler(req, res) {
               currencyCode
             }
           }
-          images(first: 20) {
+          images(first: 25) {
             nodes {
               id
               url
               altText
               width
               height
+            }
+          }
+          media(first: 25) {
+            nodes {
+              mediaContentType
+              alt
+              ... on MediaImage {
+                image {
+                  id
+                  url
+                  altText
+                  width
+                  height
+                }
+              }
+              ... on Video {
+                id
+                sources {
+                  url
+                  mimeType
+                  format
+                  width
+                  height
+                }
+                previewImage {
+                  url
+                }
+              }
             }
           }
           options {
@@ -93,6 +128,8 @@ export default async function handler(req, res) {
                 id
                 url
                 altText
+                width
+                height
               }
             }
           }

@@ -1,7 +1,21 @@
 import { useCountdown } from '../context/CountdownContext';
 
+function RollingDigit({ slot }) {
+  const { curr, prev, gen } = slot;
+  const isRolling = gen > 0;
+
+  return (
+    <span className="cd-digit-slot" aria-hidden="true">
+      <span key={gen} className={`cd-digit-roller${isRolling ? ' is-rolling' : ''}`}>
+        {isRolling && <span className="cd-digit-item">{prev}</span>}
+        <span className="cd-digit-item">{curr}</span>
+      </span>
+    </span>
+  );
+}
+
 export default function AnnouncementBar() {
-  const { time } = useCountdown();
+  const { time, digits } = useCountdown();
 
   return (
     <div className="ann-bar" role="banner" aria-label="Sale announcement">
@@ -13,21 +27,32 @@ export default function AnnouncementBar() {
           </span>
           <div
             className="countdown"
-            aria-live="polite"
             aria-label={`${time.h} hours ${time.m} minutes ${time.s} seconds`}
           >
             <div className="cd-block">
-              <span key={`h-${time.h}`} className="cd-block__num cd-digit-flip">{time.h}</span>
+              <span className="cd-block__num">
+                <span className="sr-only">{time.h}</span>
+                <RollingDigit slot={digits.h0} />
+                <RollingDigit slot={digits.h1} />
+              </span>
               <span className="cd-block__lbl">HRS</span>
             </div>
             <span className="cd-sep" aria-hidden="true">:</span>
             <div className="cd-block">
-              <span key={`m-${time.m}`} className="cd-block__num cd-digit-flip">{time.m}</span>
+              <span className="cd-block__num">
+                <span className="sr-only">{time.m}</span>
+                <RollingDigit slot={digits.m0} />
+                <RollingDigit slot={digits.m1} />
+              </span>
               <span className="cd-block__lbl">MINS</span>
             </div>
             <span className="cd-sep" aria-hidden="true">:</span>
             <div className="cd-block">
-              <span key={`s-${time.s}`} className="cd-block__num cd-digit-flip">{time.s}</span>
+              <span className="cd-block__num">
+                <span className="sr-only">{time.s}</span>
+                <RollingDigit slot={digits.s0} />
+                <RollingDigit slot={digits.s1} />
+              </span>
               <span className="cd-block__lbl">SECS</span>
             </div>
           </div>

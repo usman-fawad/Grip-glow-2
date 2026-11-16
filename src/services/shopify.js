@@ -63,6 +63,94 @@ export async function getShopifyStoreData() {
 }
 
 /**
+ * Strip query string / hash so Shopify CDN image URLs match consistently
+ */
+export function normalizeShopifyUrl(url) {
+  if (!url) return '';
+  return String(url).split('?')[0].split('#')[0].trim();
+}
+
+/**
+ * Extract variant display color label
+ */
+function getVariantColor(variant) {
+  if (!variant) return null;
+  const opt = variant.selectedOptions?.find(
+    (o) => o.name && /colou?r/i.test(o.name)
+  );
+  return (opt?.value || variant.title || '').trim() || null;
+}
+
+/**
+ * Build product gallery media list purely from Shopify product data
+ */
+export function buildShopifyGallery(product) {
+  if (!product) return [];
+
+  const title = product.title || 'Magnetic Work Light';
+  const urlToColor = new Map();
+
+  for (const variant of product.variants?.nodes || []) {
+    const color = getVariantColor(variant);
+    const key = normalizeShopifyUrl(variant.image?.url);
+    if (color && key && !urlToColor.has(key)) {
+      urlToColor.set(key, color);
+    }
+  }
+
+  const gallery = [];
+  const seenUrls = new Set();
+
+  const pushImage = (img, altOverride) => {
+    const url = img?.url;
+    const key = normalizeShopifyUrl(url);
+    if (!url || seenUrls.has(key)) return;
+    seenUrls.add(key);
+    gallery.push({
+      src: url,
+      alt: img.altText || altOverride || title,
+      color: urlToColor.get(key) || undefined,
+      isVideo: false,
+    });
+  };
+
+  // 1. Prefer Shopify `media` list (preserves Admin order including product video)
+  for (const node of product.media?.nodes || []) {
+    if (node.mediaContentType === 'IMAGE' && node.image?.url) {
+      pushImage(node.image, node.alt);
+    } else if (node.mediaContentType === 'VIDEO' && Array.isArray(node.sources)) {
+      const mp4 = node.sources
+        .filter((s) => s?.url && (s.mimeType === 'video/mp4' || s.format === 'mp4'))
+        .sort((a, b) => (b.width || 0) - (a.width || 0))[0];
+      if (mp4?.url && !seenUrls.has(normalizeShopifyUrl(mp4.url))) {
+        seenUrls.add(normalizeShopifyUrl(mp4.url));
+        gallery.push({
+          src: mp4.url,
+          poster: node.previewImage?.url || undefined,
+          alt: node.alt || `${title} - Video`,
+          isVideo: true,
+        });
+      }
+    }
+  }
+
+  // 2. Fallback / supplement with `images` and `featuredImage` / variant images
+  for (const img of product.images?.nodes || []) {
+    pushImage(img);
+  }
+  if (product.featuredImage?.url) {
+    pushImage(product.featuredImage);
+  }
+  for (const variant of product.variants?.nodes || []) {
+    if (variant.image?.url) {
+      pushImage(variant.image);
+    }
+  }
+
+  return gallery;
+}
+
+/**
  * Helper: Fetch primary product from Shopify via backend API
  */
 export async function getShopifyProduct() {

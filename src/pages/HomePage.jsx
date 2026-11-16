@@ -1,15 +1,10 @@
-import { useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import FAQAccordion from '../components/FAQAccordion';
 import Footer from '../components/Footer';
-import { useCart } from '../context/CartContext';
-
-const PRODUCT = {
-  id: 'gripglow-1',
-  name: 'The Grip Glow',
-  price: 87.00,
-  img: '/product_image.jpg',
-};
+import { useCountry } from '../context/CountryContext';
+import { BASE_GBP_PRICE } from '../utils/currency';
+import { getShopifyProduct } from '../services/shopify';
 
 const FAQ_ITEMS = [
   {
@@ -35,12 +30,39 @@ const FAQ_ITEMS = [
 ];
 
 export default function HomePage() {
-  const { addItem } = useCart();
+  const { getUnitPrice, formatPrice } = useCountry();
+  const [shopifyGbpUnit, setShopifyGbpUnit] = useState(BASE_GBP_PRICE);
+  const [shopifyGbpCompare, setShopifyGbpCompare] = useState(null);
   const navigate = useNavigate();
 
   useEffect(() => {
     document.title = 'GRIP GLOW — Magnetic Rechargeable LED Work Lights';
   }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    getShopifyProduct()
+      .then((product) => {
+        if (!mounted || !product) return;
+        const rawAmt = parseFloat(product.priceRange?.minVariantPrice?.amount);
+        if (Number.isFinite(rawAmt) && rawAmt > 0) {
+          setShopifyGbpUnit(rawAmt);
+        }
+        const rawCompare = parseFloat(product.compareAtPriceRange?.minVariantPrice?.amount);
+        if (Number.isFinite(rawCompare) && rawCompare > rawAmt) {
+          setShopifyGbpCompare(rawCompare);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const displayUnitPrice = getUnitPrice(shopifyGbpUnit);
+  const displayOrigPrice = shopifyGbpCompare
+    ? getUnitPrice(shopifyGbpCompare)
+    : +(displayUnitPrice * 2).toFixed(2);
 
   // Scroll-to-top button
   useEffect(() => {
@@ -141,8 +163,8 @@ export default function HomePage() {
               <div className="pcard__info">
                 <h3 className="pcard__title">The Grip Glow</h3>
                 <div className="pcard__prices">
-                  <span className="pcard__price-current">$87.00 AUD</span>
-                  <span className="pcard__price-original">$174.00 AUD</span>
+                  <span className="pcard__price-current">{formatPrice(displayUnitPrice)}</span>
+                  <span className="pcard__price-original">{formatPrice(displayOrigPrice)}</span>
                 </div>
               </div>
               <button
@@ -180,7 +202,7 @@ export default function HomePage() {
           <div className="trust-row" style={{marginTop:'4rem'}}>
             <div className="trust-item">
               <div className="trust-item__icon" aria-hidden="true">
-                <svg viewBox="0 0 48 48" fill="none" stroke="#E52B2B" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <svg viewBox="0 0 48 48" fill="none" stroke="#A8C34A" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <rect x="8" y="20" width="32" height="22" rx="2"/><path d="M16 20V14a8 8 0 0116 0v6"/><circle cx="24" cy="31" r="2"/><line x1="24" y1="33" x2="24" y2="37"/>
                 </svg>
               </div>
@@ -189,7 +211,7 @@ export default function HomePage() {
             </div>
             <div className="trust-item">
               <div className="trust-item__icon" aria-hidden="true">
-                <svg viewBox="0 0 48 48" fill="none" stroke="#E52B2B" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <svg viewBox="0 0 48 48" fill="none" stroke="#A8C34A" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M24 4L6 12v16c0 10 7.5 18 18 20 10.5-2 18-10 18-20V12L24 4z"/><polyline points="16 24 21 29 32 18"/>
                 </svg>
               </div>
@@ -198,7 +220,7 @@ export default function HomePage() {
             </div>
             <div className="trust-item">
               <div className="trust-item__icon" aria-hidden="true">
-                <svg viewBox="0 0 48 48" fill="none" stroke="#E52B2B" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <svg viewBox="0 0 48 48" fill="none" stroke="#A8C34A" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <rect x="4" y="12" width="40" height="30" rx="3"/><path d="M4 20h40"/><line x1="12" y1="30" x2="24" y2="30"/><line x1="28" y1="30" x2="36" y2="30"/>
                 </svg>
               </div>

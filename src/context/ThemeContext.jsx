@@ -3,20 +3,20 @@ import { createContext, useContext, useEffect } from 'react';
 const ThemeContext = createContext();
 
 export function ThemeProvider({ children }) {
-  const theme = 'dark';
+  const theme = 'light';
 
   useEffect(() => {
-    document.documentElement.setAttribute('data-theme', 'dark');
-    if (document.body) document.body.setAttribute('data-theme', 'dark');
+    document.documentElement.setAttribute('data-theme', 'light');
+    if (document.body) document.body.setAttribute('data-theme', 'light');
     try {
-      localStorage.setItem('gripglow_theme', 'dark');
+      localStorage.setItem('gripglow_theme', 'light');
     } catch {}
   }, []);
 
   const toggleTheme = () => {};
 
   return (
-    <ThemeContext.Provider value={{ theme: 'dark', toggleTheme, isDark: true }}>
+    <ThemeContext.Provider value={{ theme: 'light', toggleTheme, isDark: false }}>
       {children}
     </ThemeContext.Provider>
   );

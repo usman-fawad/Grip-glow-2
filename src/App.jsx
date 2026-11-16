@@ -42,9 +42,9 @@ function Layout() {
         {/* Fallback 404 */}
         <Route path="*"                          element={
           <div style={{minHeight:'60vh',display:'flex',alignItems:'center',justifyContent:'center',flexDirection:'column',gap:16}}>
-            <h1 style={{fontSize:'3rem',fontWeight:900,color:'#FFE600'}}>404</h1>
+            <h1 style={{fontSize:'3rem',fontWeight:900,color:'#A8C34A'}}>404</h1>
             <p style={{color:'#a0a0a0'}}>Page not found.</p>
-            <a href="/" style={{color:'#FFE600',fontWeight:700,textDecoration:'underline'}}>← Back to Home</a>
+            <a href="/" style={{color:'#A8C34A',fontWeight:700,textDecoration:'underline'}}>← Back to Home</a>
           </div>
         } />
       </Routes>

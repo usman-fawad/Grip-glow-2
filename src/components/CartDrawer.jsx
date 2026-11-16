@@ -11,11 +11,12 @@ export default function CartDrawer() {
     updateQty,
     totalPrice,
     totalQty,
+    getItemPrice,
     isCheckingOut,
     checkoutError,
     proceedToCheckout,
   } = useCart();
-  const { selectedCountry } = useCountry();
+  const { formatPrice } = useCountry();
 
   // Close on Escape key
   useEffect(() => {
@@ -33,14 +34,6 @@ export default function CartDrawer() {
       document.body.style.overflow = '';
     };
   }, [isOpen]);
-
-  const formatPrice = (amount) => {
-    if (selectedCountry?.code === 'GBP') {
-      return `£${amount.toFixed(2)}`;
-    }
-    const symbol = selectedCountry?.code === 'EUR' ? '€' : '$';
-    return `${symbol}${amount.toFixed(2)} ${selectedCountry?.code || 'AUD'}`;
-  };
 
   return (
     <>
@@ -108,6 +101,7 @@ export default function CartDrawer() {
               {items.map((item) => {
                 const itemTitle = item.title || item.name.split('(')[0].trim() || 'The Grip Glow Magnetic Work Light';
                 const itemVariant = item.variant || (item.name.includes('(') ? item.name.match(/\((.*?)\)/)?.[1] : null) || 'Stealth Edition';
+                const itemUnitPrice = getItemPrice(item);
 
                 return (
                   <li key={item.id} className="cart-item">
@@ -152,11 +146,11 @@ export default function CartDrawer() {
                         </div>
                         <div className="cart-item__price-wrap">
                           <div className="cart-item__price">
-                            {formatPrice(item.price * item.qty)}
+                            {formatPrice(itemUnitPrice * item.qty)}
                           </div>
                           {item.qty > 1 && (
                             <span className="cart-item__unit-price">
-                              {formatPrice(item.price)} each
+                              {formatPrice(itemUnitPrice)} each
                             </span>
                           )}
                         </div>
