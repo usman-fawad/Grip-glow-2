@@ -27,6 +27,10 @@ const FAQ_ITEMS = [
     question: 'Will it melt plastic components if I leave it on in tight spaces?',
     answer: 'LED technology generates significantly less heat than halogen or incandescent bulbs. The Grip Glow is designed to remain cool during normal operation. As a precaution, avoid placing any light source directly against heat-sensitive materials for extended periods.',
   },
+  {
+    question: 'How long does shipping take and how is my order processed?',
+    answer: 'Orders are processed, tested, and dispatched from our warehouse within 24 to 48 hours. Once dispatched, you will receive an email with your live tracking number. Delivery typically takes 3 to 5 business days in the UK and 4 to 7 business days internationally with tracked courier service.',
+  },
 ];
 
 export default function HomePage() {

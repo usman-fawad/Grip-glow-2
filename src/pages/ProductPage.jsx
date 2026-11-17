@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import FAQAccordion from '../components/FAQAccordion';
 import Footer from '../components/Footer';
 import { useCart } from '../context/CartContext';
@@ -31,6 +32,14 @@ const FAQ_ITEMS = [
   {
     question: 'Will it melt plastic components if I leave it on in tight spaces?',
     answer: 'LED technology generates significantly less heat than halogen or incandescent bulbs. The Grip Glow is designed to remain cool during normal operation, making it much safer around plastic covers, wiring, and rubber seals. As a precaution, avoid placing any light directly in contact with heat-sensitive materials for extended periods.',
+  },
+  {
+    question: 'How does the shipping & delivery process work?',
+    answer: 'All orders are processed and inspected at our warehouse within 24–48 hours. Once dispatched, you receive a confirmation email and SMS with a live tracking code. Delivery takes 3–5 business days in the UK and 4–7 business days internationally.',
+  },
+  {
+    question: 'Where can I track my shipment?',
+    answer: 'You can track your package directly on our website using the Track Order page with your tracking number or order number. All shipments are insured with tracked courier delivery.',
   },
 ];
 
@@ -607,8 +616,21 @@ export default function ProductPage() {
                   <div className="pi__delivery-content">
                     <span className="pi__delivery-headline">{deliveryHeadline}</span>
                     <span className="pi__delivery-destination">
-                      to {selectedCountry.name} • Tracked & Insured
+                      to {selectedCountry.name} • Tracked & Insured (Dispatches in 24–48h)
                     </span>
+                    <Link
+                      to="/shipping-policy"
+                      style={{
+                        display: 'inline-block',
+                        marginTop: 3,
+                        fontSize: '0.78rem',
+                        fontWeight: 700,
+                        color: '#496614',
+                        textDecoration: 'underline'
+                      }}
+                    >
+                      View shipping process & delivery times →
+                    </Link>
                   </div>
                 </div>
 
@@ -721,7 +743,9 @@ export default function ProductPage() {
                       <circle cx="5.5" cy="18.5" r="2.5" />
                       <circle cx="17.5" cy="18.5" r="2.5" />
                     </svg>
-                    <span className="product-trust-badge__text">Free UK Delivery</span>
+                    <span className="product-trust-badge__text">
+                      {selectedCountry?.code === 'GBP' ? 'Free UK Delivery' : `${deliveryHeadline}`}
+                    </span>
                   </div>
 
                   <div className="product-trust-badge">

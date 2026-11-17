@@ -11,6 +11,8 @@ import ProductPage     from './pages/ProductPage';
 import TrackOrderPage  from './pages/TrackOrderPage';
 import ContactPage     from './pages/ContactPage';
 import AboutPage       from './pages/AboutPage';
+import ShippingPolicyPage from './pages/ShippingPolicyPage';
+import PolicyPage      from './pages/PolicyPage';
 import './index.css';
 
 function Layout() {
@@ -39,6 +41,18 @@ function Layout() {
         <Route path="/about"                     element={<AboutPage />} />
         <Route path="/about-us"                  element={<AboutPage />} />
         <Route path="/pages/about-us"            element={<AboutPage />} />
+        {/* Shipping routes */}
+        <Route path="/shipping"                  element={<ShippingPolicyPage />} />
+        <Route path="/shipping-policy"           element={<ShippingPolicyPage />} />
+        <Route path="/pages/shipping-policy"     element={<ShippingPolicyPage />} />
+        <Route path="/delivery"                  element={<ShippingPolicyPage />} />
+        {/* Policy routes */}
+        <Route path="/privacy-policy"            element={<PolicyPage type="privacy" />} />
+        <Route path="/pages/privacy-policy"      element={<PolicyPage type="privacy" />} />
+        <Route path="/refund-policy"             element={<PolicyPage type="refund" />} />
+        <Route path="/pages/refund-policy"       element={<PolicyPage type="refund" />} />
+        <Route path="/terms-of-service"          element={<PolicyPage type="terms" />} />
+        <Route path="/pages/terms-of-service"    element={<PolicyPage type="terms" />} />
         {/* Fallback 404 */}
         <Route path="*"                          element={
           <div style={{minHeight:'60vh',display:'flex',alignItems:'center',justifyContent:'center',flexDirection:'column',gap:16}}>

@@ -193,3 +193,21 @@ export async function createShopifyCart(lines) {
 
   return data.cart;
 }
+
+/**
+ * Fetch Shopify shipping process & policies via secure backend API (/api/shopify/shipping)
+ */
+export async function getShopifyShipping() {
+  try {
+    const res = await fetch('/api/shopify/shipping', {
+      method: 'GET',
+      headers: { Accept: 'application/json' },
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    return data;
+  } catch (err) {
+    console.warn('[Shopify Service] Shipping fetch notice:', err.message);
+    return null;
+  }
+}

@@ -25,6 +25,8 @@ function localShopifyApiPlugin() {
           modulePath = '/api/shopify/products.js';
         } else if (pathname === '/api/shopify/cart/create') {
           modulePath = '/api/shopify/cart/create.js';
+        } else if (pathname === '/api/shopify/shipping') {
+          modulePath = '/api/shopify/shipping.js';
         }
 
         if (!modulePath) {

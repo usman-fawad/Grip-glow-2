@@ -29,6 +29,24 @@ export default async function handler(req, res) {
         paymentSettings {
           currencyCode
         }
+        shippingPolicy {
+          id
+          title
+          body
+          url
+        }
+        refundPolicy {
+          id
+          title
+          body
+          url
+        }
+        privacyPolicy {
+          id
+          title
+          body
+          url
+        }
       }
       products(first: $first) {
         nodes {

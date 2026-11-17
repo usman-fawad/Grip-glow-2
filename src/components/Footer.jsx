@@ -53,8 +53,18 @@ export default function Footer() {
           <div className="footer__col">
             <h4>Quick links</h4>
             <ul className="footer__links">
-              {['Privacy Policy','Refund Policy','Shipping Policy','Terms of Service'].map(l => (
-                <li key={l}><a href="#" className="footer__link">{l}</a></li>
+              {[
+                { label: 'Shipping & Delivery', path: '/shipping-policy' },
+                { label: 'Track Your Order', path: '/track-order' },
+                { label: 'Refund Policy', path: '/refund-policy' },
+                { label: 'Privacy Policy', path: '/privacy-policy' },
+                { label: 'Terms of Service', path: '/terms-of-service' },
+              ].map((item) => (
+                <li key={item.label}>
+                  <Link to={item.path} className="footer__link">
+                    {item.label}
+                  </Link>
+                </li>
               ))}
             </ul>
           </div>
