@@ -66,13 +66,28 @@ export default async function handler(req, res) {
     };
   });
 
+  const CURRENCY_TO_COUNTRY = {
+    GBP: 'GB',
+    USD: 'US',
+    AUD: 'AU',
+    EUR: 'DE',
+    NZD: 'NZ',
+    CAD: 'CA',
+  };
+
+  const rawCountry = String(body?.countryCode || 'GB').toUpperCase().trim();
+  const requestedCountry = CURRENCY_TO_COUNTRY[rawCountry] || (/^[A-Z]{2}$/.test(rawCountry) ? rawCountry : 'GB');
+
   const mutation = `
-    mutation CartCreate($input: CartInput!) {
+    mutation CartCreate($input: CartInput!, $country: CountryCode) @inContext(country: $country) {
       cartCreate(input: $input) {
         cart {
           id
           checkoutUrl
           totalQuantity
+          buyerIdentity {
+            countryCode
+          }
           discountCodes {
             code
             applicable
@@ -148,14 +163,24 @@ export default async function handler(req, res) {
           message
           code
         }
+        warnings {
+          code
+          message
+        }
       }
     }
   `;
 
-  try {
+  const callShopifyCartCreate = async (countryCode) => {
     const postData = JSON.stringify({
       query: mutation,
-      variables: { input: { lines: formattedLines } },
+      variables: {
+        country: countryCode,
+        input: {
+          lines: formattedLines,
+          buyerIdentity: { countryCode },
+        },
+      },
     });
 
     const headers = {
@@ -192,21 +217,37 @@ export default async function handler(req, res) {
     try {
       json = JSON.parse(shopifyRes.body);
     } catch {
-      return res.status(502).json({
-        success: false,
-        error: `Unexpected non-JSON response from Shopify (HTTP ${shopifyRes.status}).`,
-      });
+      return { status: 502, error: `Unexpected non-JSON response from Shopify (HTTP ${shopifyRes.status}).` };
     }
 
     if (shopifyRes.status !== 200 || (json.errors && json.errors.length > 0)) {
       const msg = json.errors?.map(e => e.message).join(', ') || `Shopify responded with HTTP ${shopifyRes.status}. Please check your shop domain.`;
-      return res.status(shopifyRes.status === 200 ? 502 : (shopifyRes.status || 502)).json({
-        success: false,
-        error: msg,
-      });
+      return { status: shopifyRes.status === 200 ? 502 : (shopifyRes.status || 502), error: msg };
     }
 
-    const cartData = json.data?.cartCreate;
+    return { status: 200, cartData: json.data?.cartCreate };
+  };
+
+  try {
+    let result = await callShopifyCartCreate(requestedCountry);
+    if (result.error) {
+      return res.status(result.status).json({ success: false, error: result.error });
+    }
+
+    let cartData = result.cartData;
+    const isOutOfStock =
+      cartData?.cart?.totalQuantity === 0 ||
+      (cartData?.warnings || []).some(w => w.code === 'MERCHANDISE_OUT_OF_STOCK');
+
+    // If the requested country doesn't have an active Shopify Market / Shipping Zone yet,
+    // fall back to GB (primary stocked UK warehouse) so checkout opens with stock intact.
+    if (isOutOfStock && requestedCountry !== 'GB') {
+      const fallbackResult = await callShopifyCartCreate('GB');
+      if (!fallbackResult.error && fallbackResult.cartData?.cart?.totalQuantity > 0) {
+        cartData = fallbackResult.cartData;
+      }
+    }
+
     if (cartData?.userErrors && cartData.userErrors.length > 0) {
       return res.status(400).json({
         success: false,
@@ -226,6 +267,7 @@ export default async function handler(req, res) {
       success: true,
       checkoutUrl: cartData.cart.checkoutUrl,
       cart: cartData.cart,
+      warnings: cartData.warnings || [],
     });
   } catch (err) {
     return res.status(500).json({

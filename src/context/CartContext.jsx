@@ -6,7 +6,7 @@ import { BASE_GBP_PRICE } from '../utils/currency';
 const CartContext = createContext(null);
 
 export function CartProvider({ children }) {
-  const { getUnitPrice } = useCountry();
+  const { getUnitPrice, selectedCountry } = useCountry();
   const [items, setItems] = useState([]);
   const [isOpen, setIsOpen] = useState(false);
   const [isCheckingOut, setIsCheckingOut] = useState(false);
@@ -98,9 +98,9 @@ export function CartProvider({ children }) {
         }
       });
 
-      console.log('[Shopify Checkout] Initiating cartCreate with lines:', lines);
+      console.log('[Shopify Checkout] Initiating cartCreate with lines:', lines, 'country:', selectedCountry?.code);
 
-      const cart = await createShopifyCart(lines);
+      const cart = await createShopifyCart(lines, selectedCountry?.code || 'GBP');
 
       if (!cart || !cart.checkoutUrl) {
         throw new Error('Shopify did not provide a valid checkout URL.');
@@ -121,7 +121,7 @@ export function CartProvider({ children }) {
       setCheckoutError(userFriendlyMsg);
       setIsCheckingOut(false);
     }
-  }, [items]);
+  }, [items, selectedCountry]);
 
   const getItemPrice = useCallback((item) => {
     if (item?.qtyUnits) {

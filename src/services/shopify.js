@@ -166,7 +166,7 @@ export async function getShopifyProduct() {
 /**
  * Create Shopify Cart via secure backend API (/api/shopify/cart/create)
  */
-export async function createShopifyCart(lines) {
+export async function createShopifyCart(lines, countryCode = 'GB') {
   if (!lines || lines.length === 0) {
     throw new Error('Your cart is empty. Please add items before checking out.');
   }
@@ -179,7 +179,7 @@ export async function createShopifyCart(lines) {
   const res = await fetch('/api/shopify/cart/create', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ lines: formattedLines }),
+    body: JSON.stringify({ lines: formattedLines, countryCode }),
   });
 
   const data = await res.json().catch(() => null);

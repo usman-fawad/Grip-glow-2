@@ -19,7 +19,7 @@ export default async function handler(req, res) {
   const SHOPIFY_PRIVATE_TOKEN = process.env.SHOPIFY_PRIVATE_TOKEN || '';
 
   const query = `
-    query GetProducts($first: Int = 10) {
+    query GetProducts($first: Int = 10) @inContext(country: GB) {
       shop {
         name
         primaryDomain {
